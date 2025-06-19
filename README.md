@@ -12,7 +12,7 @@
 1. Install [Mambaforge](https://github.com/conda-forge/miniforge#mambaforge) (strongly recommended) or Anaconda
 1. Clone this repo
     ```bash
-    git clone https://github.com/pointW/equidiff.git
+    git clone https://github.com/ZhangZhiyuanZhang/canonical_policy
     cd equidiff
     ```
 1. Install environment:
