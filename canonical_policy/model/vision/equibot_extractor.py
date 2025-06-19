@@ -91,12 +91,11 @@ class EquibotEncoder(nn.Module):
 
             state_vec = torch.cat((state_pos.unsqueeze(1), state_dir1.unsqueeze(1), state_dir2.unsqueeze(1)), dim=1)  # [BTo, 3, 3]
 
-            z = self.extractor(input_pcl).reshape(BTo, self.obs_dim, 3)
+            z, _ = self.extractor(input_pcl.transpose(1, 2)) # [BTo, 32, 3] 
+            obs_cond_vec = torch.cat((z, state_vec), dim=1)  # [BTo, 32 + 3, 3]
+            obs_cond_vec = obs_cond_vec.reshape(BTo//2, -1, 3)  # [B, 2 * (32 + 3), 3]
 
-            obs_cond_vec = torch.cat((z, state_vec), dim=1)  # [BTo, self.obs_dim + 3, 3]
-            obs_cond_vec = obs_cond_vec.reshape(BTo//To, -1, 3)  # [B, To * (self.obs_dim + 3), 3]
-
-            obs_cond_scalar = state_gripper.reshape(BTo//To, -1)  # [B, To * 2]
+            obs_cond_scalar = state_gripper.reshape(BTo//To, -1)  # [B, 2 * 2]
 
             ret = {}
             ret['obs_cond_vec'] = obs_cond_vec

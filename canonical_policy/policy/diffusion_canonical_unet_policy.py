@@ -9,13 +9,13 @@ from termcolor import cprint
 import copy
 import time
 import pytorch3d.ops as torch3d_ops
-from canonical_policy.policy.base_image_policy import BaseImagePolicy
 from canonical_policy.model.common.normalizer import LinearNormalizer
 from canonical_policy.model.diffusion.canonical_conditional_unet1d import CanonicalConditionalUnet1D
 from canonical_policy.model.diffusion.mask_generator import LowdimMaskGenerator
 from canonical_policy.common.pytorch_util import dict_apply
 from canonical_policy.model.vision.canonical_extractor import CanonicalEncoder
-
+from canonical_policy.policy.base_image_policy import BaseImagePolicy
+    
 class DiffusionCanonicalUNetPolicy(BaseImagePolicy):
     def __init__(self, 
             shape_meta: dict,
@@ -23,7 +23,6 @@ class DiffusionCanonicalUNetPolicy(BaseImagePolicy):
             horizon, 
             n_action_steps, 
             n_obs_steps,
-            canonical_encoder_cfg,
             num_inference_steps=None,
             obs_as_global_cond=True,
             diffusion_step_embed_dim=256,
@@ -33,6 +32,7 @@ class DiffusionCanonicalUNetPolicy(BaseImagePolicy):
             encoder_output_dim=256,
             use_pc_color=False,
             pointnet_type="cp_so2",
+            canonical_encoder_cfg=None,
             cond_predict_scale=True,
             # parameters passed to step
             **kwargs):
@@ -52,8 +52,8 @@ class DiffusionCanonicalUNetPolicy(BaseImagePolicy):
         obs_dict = dict_apply(obs_shape_meta, lambda x: x['shape'])
 
         obs_encoder = CanonicalEncoder(observation_space=obs_dict,
-                                        canonical_encoder_cfg=canonical_encoder_cfg,
                                         out_channel=encoder_output_dim,
+                                        canonical_encoder_cfg=canonical_encoder_cfg,
                                         use_pc_color=use_pc_color,
                                         pointnet_type=pointnet_type,)
 
@@ -65,21 +65,21 @@ class DiffusionCanonicalUNetPolicy(BaseImagePolicy):
             input_dim = action_dim
             global_cond_dim = obs_feature_dim * n_obs_steps
         
-
         self.use_pc_color = use_pc_color
         self.pointnet_type = pointnet_type
+        
         cprint(f"[DiffusionUnetCanonicalPolicy] pointnet_type: {self.pointnet_type}", "yellow")
 
         model = CanonicalConditionalUnet1D(
-            input_dim=input_dim,
-            n_obs_steps=n_obs_steps,
-            local_cond_dim=None,
-            global_cond_dim=global_cond_dim,
-            diffusion_step_embed_dim=diffusion_step_embed_dim,
-            down_dims=down_dims,
-            kernel_size=kernel_size,
-            n_groups=n_groups,
-            cond_predict_scale=cond_predict_scale
+                    input_dim=input_dim,
+                    n_obs_steps=n_obs_steps,
+                    local_cond_dim=None,
+                    global_cond_dim=global_cond_dim,
+                    diffusion_step_embed_dim=diffusion_step_embed_dim,
+                    down_dims=down_dims,
+                    kernel_size=kernel_size,
+                    n_groups=n_groups,
+                    cond_predict_scale=cond_predict_scale
         )
 
         self.obs_encoder = obs_encoder
@@ -116,6 +116,8 @@ class DiffusionCanonicalUNetPolicy(BaseImagePolicy):
             condition_mask,
             points_center,
             est_quat,
+            condition_data_pc=None,
+            condition_mask_pc=None,
             local_cond=None,
             global_cond=None,
             generator=None,
@@ -185,10 +187,8 @@ class DiffusionCanonicalUNetPolicy(BaseImagePolicy):
         this_nobs = dict_apply(nobs, lambda x: x[:,:To,...].reshape(-1,*x.shape[2:]))
         ret = self.obs_encoder(this_nobs)
 
-        final_feat = ret['final_feat']
-
         # reshape back to B, Do
-        global_cond = final_feat.reshape(B, -1)
+        global_cond = ret['final_feat'].reshape(B, -1)
         # global_cond = nobs_features
         # empty data for action
         cond_data = torch.zeros(size=(B, T, Da), device=device, dtype=dtype)
@@ -246,10 +246,8 @@ class DiffusionCanonicalUNetPolicy(BaseImagePolicy):
         this_nobs = dict_apply(nobs, lambda x: x[:,:self.n_obs_steps,...].reshape(-1,*x.shape[2:]))
         ret = self.obs_encoder(this_nobs)
 
-        final_feat = ret['final_feat']
-
         # reshape back to B, Do
-        global_cond = final_feat.reshape(batch_size, -1)  # [B, To*Do]
+        global_cond = ret['final_feat'].reshape(batch_size, -1)  # [B, To*Do]
 
         # generate impainting mask
         condition_mask = self.mask_generator(trajectory.shape)
@@ -302,7 +300,7 @@ class DiffusionCanonicalUNetPolicy(BaseImagePolicy):
         else:
             raise ValueError(f"Unsupported prediction type {pred_type}")
 
-        loss = F.mse_loss(pred, target, reduction='none')
+        loss = F.l1_loss(pred, target, reduction='none')
         loss = loss * loss_mask.type(loss.dtype)
         loss = reduce(loss, 'b ... -> b (...)', 'mean')
         loss = loss.mean()

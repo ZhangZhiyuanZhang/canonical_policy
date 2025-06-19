@@ -209,7 +209,7 @@ class CanonicalConditionalUnet1D(nn.Module):
         # Reshape sample and extract components
         sample = einops.rearrange(sample, 'b t c -> (b t) c')
         sample_pos, sample_sixd, sample_gripper = sample[:, :3], sample[:, 3:9], sample[:, [-1]]  # [BT, 3], [BT, 6], [BT, 1]
-        sample_quat = self.getQuat(sample_sixd)
+        sample_quat = self.getQuat(sample_sixd) # [BT, 4] wijk
 
         # SE3 inverse transformation for absolute action
         sample_pos = quaternion_apply(est_quat_inv, sample_pos - points_center)
