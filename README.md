@@ -13,7 +13,7 @@
 1. Clone this repo
     ```bash
     git clone https://github.com/ZhangZhiyuanZhang/canonical_policy
-    cd equidiff
+    cd canonical_policy
     ```
 1. Install environment:
     Use Mambaforge (strongly recommended):
