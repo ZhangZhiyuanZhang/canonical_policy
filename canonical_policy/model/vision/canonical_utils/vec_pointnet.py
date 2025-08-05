@@ -21,14 +21,14 @@ class VecPointNet(nn.Module):
         h_dim=128,
         c_dim=128,
         num_layers=4,
-        knn=16,
+        ksize=16,
     ):
         super().__init__()
 
         self.h_dim = h_dim
         self.c_dim = c_dim
         self.num_layers = num_layers
-        self.knn = knn
+        self.ksize = ksize
 
         self.pool = meanpool
 
@@ -85,7 +85,7 @@ class VecPointNet(nn.Module):
         x: [B, N, 3]
         """
         x = x.transpose(1, 2).unsqueeze(1)  # [BT, 1, 3, N]
-        x, knn_idx = self.get_graph_feature(x, self.knn, cross=True)  # [BT, 3, 3, N, 8]
+        x, knn_idx = self.get_graph_feature(x, self.ksize, cross=True)  # [BT, 3, 3, N, 8]
         x, _ = self.conv_in(x)  # [BT, 32, 3, N, 8]
         x = self.pool(x)  # [BT, 32, 3, N]
 

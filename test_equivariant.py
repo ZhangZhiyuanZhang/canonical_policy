@@ -24,7 +24,7 @@ def random_rotation_matrix():
     ])
 
 # SO3-equivariant model
-extractor = VecPointNet(h_dim=32, c_dim=32, num_layers=2, knn=5)
+extractor = VecPointNet(h_dim=32, c_dim=32, num_layers=2, ksize=5)
 predictor = VN_Regressor(pc_feat_dim=32)
 
 

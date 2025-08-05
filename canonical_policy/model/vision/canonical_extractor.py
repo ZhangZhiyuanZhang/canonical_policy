@@ -83,7 +83,7 @@ class CanonicalEncoder(nn.Module):
 
         if pointnet_type == "cp_so2" or pointnet_type == "cp_so3":
             self.xyz_extractor = AggEncoder(hidden_dim=self.obs_dim, ksize=self.ksize)
-            self.equiv_extractor = VecPointNet(h_dim=self.rot_hidden_dim, c_dim=self.rot_hidden_dim, num_layers=self.rot_layers, knn=self.k)
+            self.equiv_extractor = VecPointNet(h_dim=self.rot_hidden_dim, c_dim=self.rot_hidden_dim, num_layers=self.rot_layers, ksize=self.ksize)
             self.rot_predictor = VN_Regressor(pc_feat_dim=self.rot_hidden_dim)
         else:
             raise NotImplementedError(f"pointnet_type: {pointnet_type}")
