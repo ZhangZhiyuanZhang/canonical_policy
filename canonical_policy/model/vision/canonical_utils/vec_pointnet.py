@@ -81,8 +81,10 @@ class VecPointNet(nn.Module):
         return y, knn_idx  # [64, 3, 3, 1024, 8] [B, 3, 3, N, k]
 
     def forward(self, x):
-        x = x.unsqueeze(1)  # [BT, 1, 3, N]
-
+        """
+        x: [B, N, 3]
+        """
+        x = x.transpose(1, 2).unsqueeze(1)  # [BT, 1, 3, N]
         x, knn_idx = self.get_graph_feature(x, self.knn, cross=True)  # [BT, 3, 3, N, 8]
         x, _ = self.conv_in(x)  # [BT, 32, 3, N, 8]
         x = self.pool(x)  # [BT, 32, 3, N]
@@ -100,7 +102,7 @@ class VecPointNet(nn.Module):
 
         x_global = x.mean(-1)  # [B, out, 3]
 
-        return x_global, x
+        return x_global
 
 class VN_Regressor(nn.Module):
     def __init__(self, pc_feat_dim):

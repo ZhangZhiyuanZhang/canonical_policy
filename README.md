@@ -1,7 +1,14 @@
-# Equivariant Diffusion Policy
-[Project Website](https://zhangzhiyuanzhang.github.io/cp-website/) | [Paper](https://arxiv.org/abs/2505.18474) | [Video](https://drive.google.com/file/d/1fKU6Cs5frtCxBv3SxwQF2hUcB0vKy1US/view)  
-<a href="https://zhangzhiyuanzhang.github.io/personal_website/">Zhiyuan Zhang</a><sup>1,*</sup>, <a href="https://zhengtongxu.github.io/website/">Zhengtong Xu</a><sup>1,*</sup>, <a href="">Jai Nanda Lakamsani</a><sup>1</sup>, <a href="https://www.purduemars.com/">Yu She</a><sup>2</sup>  
-<sup>1</sup>Purdue Univeristy, <sup>*</sup>Equal Contribution  
+# Canonical Policy
+[Project Website](https://zhangzhiyuanzhang.github.io/cp-website/) |
+[Paper](https://arxiv.org/abs/2505.18474) |
+[Video](https://drive.google.com/file/d/1fKU6Cs5frtCxBv3SxwQF2hUcB0vKy1US/view)  
+<a href="https://zhangzhiyuanzhang.github.io/personal_website/">Zhiyuan Zhang*</a><sup>1</sup>, 
+<a href="https://zhengtongxu.github.io/website/">Zhengtong Xu*</a><sup>1</sup>, 
+<a href="">Jai Nanda Lakamsani</a><sup>1</sup>, 
+<a href="https://www.purduemars.com/">Yu She</a><sup>1</sup>  
+
+<sup>1</sup> Purdue University, <sup>*</sup> Equal Contribution
+
 ![](img/Teaser.gif) | 
 ## Installation
 1.  Install the following apt packages for mujoco:
@@ -42,7 +49,10 @@
     pip list | grep mujoco
     ```
 
-![](img/Pipeline.svg) |
+<div style="background-color:white; display:inline-block; padding:5px;">
+  <img src="img/Pipeline.svg" alt="Pipeline" />
+</div>
+
 
 
 ## Quick Guide: Canonical Representation of Equivariant Groups
@@ -53,13 +63,14 @@ from canonical_policy.model.vision.canonical_utils.utils import construct_rotati
 from canonical_policy.model.vision.canonical_utils.vec_pointnet import VecPointNet, VN_Regressor
 
 # encapulate the rotation matrix estimation
-def get_inv_canonical_rot(input_pcl, extractor, predictor):
-    # pc: [N, 3]
-    input_pcl = input_pcl.unsqueeze(0).transpose(1, 2)  # [1, 3, N]
-    equiv_feat, _ = extractor(input_pcl)
-    v1, v2 = predictor(equiv_feat)
-    rot = construct_rotation_matrix(v1, v2)
-    return rot.transpose(1, 2)  # [1, 3, 3]
+def get_canonical_rot(input_pcl, extractor, predictor):
+    """
+    input_pcl: [B, N, 3]
+    """
+    equiv_feat = extractor(input_pcl)   # [B, D, 3, N] mean pooling -> [B, D, 3]
+    v1, v2 = predictor(equiv_feat)  # [B, 3], [B, 3]
+    rot = construct_rotation_matrix(v1, v2)  # [B, 3, 3]
+    return rot
 
 # generate random SO3 rotation matrix
 def random_rotation_matrix():
@@ -79,49 +90,47 @@ predictor = VN_Regressor(pc_feat_dim=32)
 ### Generate Equivariant Group
 ```bash
 # Generate random point cloud X ∈ ℝ^{N×3}
+B = 1
 N = 12
-X = torch.rand(N, 3)
+X = torch.rand(B, N, 3)
 
 # X and Y are within the same equivariant group
 R = random_rotation_matrix()
-t = torch.randn(1, 3)
-Y = X @ R.T + t
+t = torch.randn(B, 1, 3)
+Y = X @ R.T + t  # equal to (R @ X.T).T
 ```
 ### Transform elements of an equivariant group into a shared canonical representation
 ```bash
 # 1. Point Cloud Decenterization
-X_c = X - X.mean(0, keepdim=True)
-Y_c = Y - Y.mean(0, keepdim=True)
+X_decentered = X - X.mean(dim=1, keepdim=True)   # [B, N, 3]
+Y_decentered = Y - Y.mean(dim=1, keepdim=True)   # [B, N, 3]
 
 # 2. Compute inverse rotation matrix for each element
-rot_X_inv = get_inv_canonical_rot(X_c, extractor, predictor)
-rot_Y_inv = get_inv_canonical_rot(Y_c, extractor, predictor)
+rot_X = get_canonical_rot(X_decentered, extractor, predictor)  # [B, 3, 3]
+rot_Y = get_canonical_rot(Y_decentered, extractor, predictor)  # [B, 3, 3]
 
 # 3. Transform to canonical space
-X_can = (rot_X_inv @ X_c.T.unsqueeze(0)).squeeze(0).T
-Y_can = (rot_Y_inv @ Y_c.T.unsqueeze(0)).squeeze(0).T
+X_canonical = X_decentered @ rot_X  # equal to (R^(-1) @ X.T).T
+Y_canonical = Y_decentered @ rot_Y  # equal to (R^(-1) @ X.T).T
 
 # Print results
-print("X_canonical:", X_can)
-print("Y_canonical:", Y_can)
+print("X_canonical:", X_canonical)
+print("Y_canonical:", Y_canonical)
 ```
 
 ## Dataset
 ### Download Dataset
-```bash
-# Download all datasets
-python canonical_policy/scripts/download_datasets.py --tasks stack_d1 stack_three_d1 square_d2 threading_d2 coffee_d2 three_piece_assembly_d2 hammer_cleanup_d1 mug_cleanup_d1 kitchen_d1 nut_assembly_d0 pick_place_d0 coffee_preparation_d1
-# Alternatively, download one (or several) datasets of interest, e.g.,
-python canonical_policy/scripts/download_datasets.py --tasks stack_d1
-```
+Download dataset from MimicGen's hugging face: https://huggingface.co/datasets/amandlek/mimicgen_datasets/tree/main/core  
+Make sure the dataset is kept under `/path/to/canonical_policy/data/robomimic/datasets/[dataset]/[dataset].hdf5`
+
 ### Generating Voxel and Point Cloud Observation
 
 ```bash
 # Template
 python canonical_policy/scripts/dataset_states_to_obs.py --input data/robomimic/datasets/[dataset]/[dataset].hdf5 --output data/robomimic/datasets/[dataset]/[dataset]_voxel.hdf5 --num_workers=[n_worker]
 # Replace [dataset] and [n_worker] with your choices.
-# E.g., use 24 workers to generate point cloud and voxel observation for stack_d1
-python canonical_policy/scripts/dataset_states_to_obs.py --input data/robomimic/datasets/stack_d1/stack_d1.hdf5 --output data/robomimic/datasets/stack_d1/stack_d1_voxel.hdf5 --num_workers=24
+# E.g., use 24 workers to generate point cloud and voxel observation for stack_d1 with 200 demos
+python canonical_policy/scripts/dataset_states_to_obs.py --input data/robomimic/datasets/stack_d1/stack_d1.hdf5 --output data/robomimic/datasets/stack_d1/stack_d1_voxel.hdf5 --num_workers=24 --n=200
 ```
 
 ### Convert Action Space in Dataset
@@ -130,8 +139,6 @@ The downloaded dataset has a relative action space. To train with absolute actio
 # Template
 python canonical_policy/scripts/robomimic_dataset_conversion.py -i data/robomimic/datasets/[dataset]/[dataset].hdf5 -o data/robomimic/datasets/[dataset]/[dataset]_abs.hdf5 -n [n_worker]
 # Replace [dataset] and [n_worker] with your choices.
-# E.g., convert stack_d1 (non-voxel) with 12 workers
-python canonical_policy/scripts/robomimic_dataset_conversion.py -i data/robomimic/datasets/stack_d1/stack_d1_voxel.hdf5 -o data/robomimic/datasets/stack_d1/stack_d1_abs.hdf5 -n 12
 # E.g., convert stack_d1_voxel (voxel) with 12 workers
 python canonical_policy/scripts/robomimic_dataset_conversion.py -i data/robomimic/datasets/stack_d1/stack_d1_voxel.hdf5 -o data/robomimic/datasets/stack_d1/stack_d1_voxel_abs.hdf5 -n 12
 ```
@@ -147,5 +154,5 @@ python train.py --config-name=train_canonical_diffusion_unet_abs task_name=stack
 This repository is released under the MIT license. See [LICENSE](LICENSE) for additional details.
 
 ## Acknowledgement
-* Our repo is built upon the origional [Equivariant Diffusion Policy](https://github.com/pointW/equidiff)
+* Our repo is built upon the origional [Equivariant Diffusion Policy](https://github.com/pointW/canonical_policy)
 * The Point Cloud Encoder is adapted from the original [PointMLP](https://github.com/ma-xu/pointMLP-pytorch)

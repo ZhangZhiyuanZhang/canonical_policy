@@ -60,39 +60,30 @@ class CanonicalEncoder(nn.Module):
                  state_mlp_activation_fn=nn.ReLU,
                  use_pc_color=False,
                  pointnet_type='cp_so2',
-                 state_keys=['robot0_eef_pos', 'robot0_eef_quat', 'robot0_gripper_qpos']
+                 state_keys=['robot0_eef_pos', 'robot0_eef_quat', 'robot0_gripper_qpos'],
+                 point_cloud_key='point_cloud',
                  ):
         super().__init__()
-        self.imagination_key = 'imagin_robot'
         self.state_keys = state_keys
-        self.point_cloud_key = 'point_cloud'
-        self.rgb_image_key = 'image'
-        self.n_output_channels = out_channel
+        self.point_cloud_key = point_cloud_key
 
-        self.use_imagined_robot = self.imagination_key in observation_space.keys()
         self.point_cloud_shape = observation_space[self.point_cloud_key]
         self.state_size = sum([observation_space[key][0] for key in self.state_keys])
-        if self.use_imagined_robot:
-            self.imagination_shape = observation_space[self.imagination_key]
-        else:
-            self.imagination_shape = None
 
         cprint(f"[CanonicalEncoder] point cloud shape: {self.point_cloud_shape}", "yellow")
         cprint(f"[CanonicalEncoder] state shape: {self.state_size}", "yellow")
-        cprint(f"[CanonicalEncoder] imagination point shape: {self.imagination_shape}", "yellow")
 
         self.use_pc_color = use_pc_color
         self.pointnet_type = pointnet_type
         self.obs_dim = out_channel
 
-        self.num_points = canonical_encoder_cfg.num_points
-        self.k = canonical_encoder_cfg.neighbor_num
+        self.ksize = canonical_encoder_cfg.neighbor_num
         self.rot_hidden_dim = canonical_encoder_cfg.rot_hidden_dim
         self.rot_layers = canonical_encoder_cfg.rot_layers
 
         if pointnet_type == "cp_so2" or pointnet_type == "cp_so3":
-            self.extractor = AggEncoder(points=self.num_points, hidden_dim=self.obs_dim, k=self.k)
-            self.rot_extractor = VecPointNet(h_dim=self.rot_hidden_dim, c_dim=self.rot_hidden_dim, num_layers=self.rot_layers, knn=self.k)
+            self.xyz_extractor = AggEncoder(hidden_dim=self.obs_dim, ksize=self.ksize)
+            self.equiv_extractor = VecPointNet(h_dim=self.rot_hidden_dim, c_dim=self.rot_hidden_dim, num_layers=self.rot_layers, knn=self.k)
             self.rot_predictor = VN_Regressor(pc_feat_dim=self.rot_hidden_dim)
         else:
             raise NotImplementedError(f"pointnet_type: {pointnet_type}")
@@ -103,19 +94,13 @@ class CanonicalEncoder(nn.Module):
             net_arch = []
         else:
             net_arch = state_mlp_size[:-1]
-        output_dim = state_mlp_size[-1]
+        state_dim = state_mlp_size[-1]
+        self.state_mlp = nn.Sequential(*create_mlp(self.state_size, state_dim, net_arch, state_mlp_activation_fn))
 
-        self.n_output_channels += output_dim
-        self.state_mlp = nn.Sequential(*create_mlp(self.state_size, output_dim, net_arch, state_mlp_activation_fn))
-
+        self.n_output_channels = self.obs_dim + state_dim
         cprint(f"[CanonicalEncoder] output dim: {self.n_output_channels}", "red")
 
     def forward(self, observations: Dict) -> torch.Tensor:
-        points = observations[self.point_cloud_key]  # [B*To, N, 6]
-        # sampling
-        points, _ = sample_farthest_points(points, K=self.num_points)  # [BTo, num_samples, 6]
-        points_xyz = points[..., :3]    # [BTo, num_samples, 3]
-        BTo, N = points.shape[:2]
 
         # extract state
         state_pos = observations[self.state_keys[0]]  # [BTo, 3]
@@ -123,12 +108,17 @@ class CanonicalEncoder(nn.Module):
         state_quat = state_quat[:, [3, 0, 1, 2]]  # [BTo, 4]  wijk
         state_gripper = observations[self.state_keys[2]]  # [BTo, 2]
 
+        # extract point cloud
+        points = observations[self.point_cloud_key]  # [B*To, N, 6]
+        points, _ = sample_farthest_points(points, K=self.num_points)  # [BTo, num_samples, 6]
+        points_xyz = points[..., :3]    # [BTo, num_samples, 3]
+
         # 1. Point Cloud Decenterization
         points_center = torch.mean(points_xyz, dim=1, keepdim=True)  # [BTo, 1, 3]
         input_pcl = points_xyz - points_center  # [BTo, N, 3]
 
         # 2. Using SO3-equivariant Network to predict rotation
-        equiv_feat, _ = self.rot_extractor(input_pcl.transpose(1, 2))  # [B, 32, 3], [B, 64]
+        equiv_feat = self.equiv_extractor(input_pcl)  # [B, 32, 3], [B, 64]
         v1, v2 = self.rot_predictor(equiv_feat)
         rot_mat = construct_rotation_matrix(v1, v2)  # [B, 3, 3]  SO3
 
@@ -148,17 +138,15 @@ class CanonicalEncoder(nn.Module):
         state_pos = quaternion_apply(est_quat_inv, state_pos)   # [BTo, 3]
         state_quat = quaternion_multiply(est_quat_inv, state_quat)  # [BTo, 4]  wijk
 
-        # 4. SO3-inverse for point cloud
-        input_pcl_flat = input_pcl.reshape(-1, 3)   # [BTo*N, 3]
-        rot_input_pcl = quaternion_apply(est_quat_inv.repeat_interleave(N, dim=0), input_pcl_flat)  # [BTo*N, 3]
-        rot_input_pcl = rot_input_pcl.reshape(BTo, N, 3)    # [BTo, N, 3]
+        # 4. SO3-inverse for point cloud, (R^(-1)*x.T).T = x*R
+        rot_input_pcl = torch.matmul(input_pcl, est_rot)
 
         # 5. Extract features for observations
-        points_feat = self.extractor(rot_input_pcl)  # [BTo, obs_dim]
+        xyz_feat = self.xyz_extractor(rot_input_pcl)  # [BTo, obs_dim]
         state = torch.cat([state_pos, state_quat, state_gripper], dim=-1)   # [BTo, Ds]
         state_feat = self.state_mlp(state)  # [BTo, state_dim]
 
-        final_feat = torch.cat([points_feat, state_feat], dim=-1)  # [BTo, self.n_output_channels]
+        final_feat = torch.cat([xyz_feat, state_feat], dim=-1)  # [BTo, self.n_output_channels]
 
         ret = {}
         ret['final_feat'] = final_feat

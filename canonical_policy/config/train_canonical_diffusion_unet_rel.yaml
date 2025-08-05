@@ -58,7 +58,6 @@ policy:
   pointnet_type: "cp_so2"
 
   canonical_encoder_cfg:
-    num_points: 256
     neighbor_num: 10
     rot_hidden_dim: 48
     rot_layers: 4
