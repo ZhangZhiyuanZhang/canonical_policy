@@ -1,4 +1,4 @@
-# Canonical Policy
+# Canonical Policy: Learning Canonical 3D Representation for Equivariant Policy
 [Project Website](https://zhangzhiyuanzhang.github.io/cp-website/) |
 [Paper](https://arxiv.org/abs/2505.18474) |
 [Video](https://drive.google.com/file/d/1fKU6Cs5frtCxBv3SxwQF2hUcB0vKy1US/view)  
@@ -9,7 +9,7 @@
 
 <sup>1</sup> Purdue University, <sup>*</sup> Equal Contribution
 
-![](img/Teaser.gif) | 
+![](img/Teaser.gif)
 ## Installation
 1.  Install the following apt packages for mujoco:
     ```bash
@@ -49,7 +49,7 @@
     pip list | grep mujoco
     ```
 
-![](img/Pipeline.svg) |
+![](img/Pipeline.svg)
 
 
 ## Quick Guide: Canonical Representation of Equivariant Groups
