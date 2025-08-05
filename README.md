@@ -49,10 +49,7 @@
     pip list | grep mujoco
     ```
 
-<div style="background-color:white; display:inline-block; padding:5px;">
-  <img src="img/Pipeline.svg" alt="Pipeline" />
-</div>
-
+![](img/Pipeline.svg) |
 
 
 ## Quick Guide: Canonical Representation of Equivariant Groups
