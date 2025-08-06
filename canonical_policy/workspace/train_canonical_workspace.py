@@ -302,7 +302,7 @@ class TrainCanonicalWorkspace:
                 step_log['test_mean_score'] = - train_loss
                 
             # checkpoint
-            if (((self.epoch % cfg.training.checkpoint_every) == 0 and self.epoch is not 0) or (self.epoch > (cfg.training.num_epochs-10))) and cfg.checkpoint.save_ckpt:
+            if (((self.epoch % cfg.training.checkpoint_every) == 0) or (self.epoch > (cfg.training.num_epochs-10))) and cfg.checkpoint.save_ckpt:
                 # checkpointing
                 if cfg.checkpoint.save_last_ckpt:
                     self.save_checkpoint()

@@ -77,6 +77,7 @@ class CanonicalEncoder(nn.Module):
         self.pointnet_type = pointnet_type
         self.obs_dim = out_channel
 
+        self.num_points = canonical_encoder_cfg.num_points  
         self.ksize = canonical_encoder_cfg.neighbor_num
         self.rot_hidden_dim = canonical_encoder_cfg.rot_hidden_dim
         self.rot_layers = canonical_encoder_cfg.rot_layers
