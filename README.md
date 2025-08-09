@@ -147,9 +147,24 @@ To train Canonical Policy (with absolute pose control) in Stack D1 task:
 python train.py --config-name=train_canonical_diffusion_unet_abs task_name=stack_d1 n_demo=200
 ```
 
+## Citation
+Please cite this paper if you find helpful,
+```bash
+@article{zhang2025canonical,
+    title={Canonical Policy: Learning Canonical 3D Representation for Equivariant Policy},
+    author={Zhang, Zhiyuan and Xu, Zhengtong and Lakamsani, Jai Nanda and She, Yu},
+    journal={arXiv preprint arXiv:2505.18474},
+    year={2025}
+}
+```
+
 ## License
 This repository is released under the MIT license. See [LICENSE](LICENSE) for additional details.
 
 ## Acknowledgement
 * Our repo is built upon the origional [Equivariant Diffusion Policy](https://github.com/pointW/canonical_policy)
 * The Point Cloud Encoder is adapted from the original [PointMLP](https://github.com/ma-xu/pointMLP-pytorch)
+* We used [Vector Neurons](https://github.com/FlyingGiraffe/vnn) as our SO(3)-equivariant network: .
+In practice, we only need to leverage the SO(3)-equivariance property to obtain the rotation matrix.
+In theory, any SO(3)-equivariant network could be used, but VN performs equivariant operations directly on vectors, making it well-suited for rotation vector estimation.
+
