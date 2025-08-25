@@ -143,8 +143,11 @@ python canonical_policy/scripts/robomimic_dataset_conversion.py -i data/robomimi
 ## Training with point cloud observation
 To train Canonical Policy (with absolute pose control) in Stack D1 task:
 ```bash
-# Make sure you have the voxel converted dataset with absolute action space from the previous step 
-python train.py --config-name=train_canonical_diffusion_unet_abs task_name=stack_d1 n_demo=200
+# Make sure you have the voxel converted dataset with absolute action space from the previous step
+# Train the Canonical Policy with SO(2) Equivariance
+python train.py --config-name=train_canonical_diffusion_unet_abs task_name=stack_d1 n_demo=200 policy.pointnet_type=cp_so2
+# Train the Canonical Policy with SO(3) Equivariance
+python train.py --config-name=train_canonical_diffusion_unet_abs task_name=stack_d1 n_demo=200 policy.pointnet_type=cp_so3
 ```
 
 ## Citation

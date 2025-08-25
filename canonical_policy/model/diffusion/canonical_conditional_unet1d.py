@@ -197,7 +197,7 @@ class CanonicalConditionalUnet1D(nn.Module):
         local_cond: (B,T,local_cond_dim)
         global_cond: (B,global_cond_dim)
         points_center: [BTo, 1, 3]
-        points_scalar: [BTo]
+        est_quat: [BTo, 4] wijk
         output: (B,T,input_dim)
         """
         B, T = sample.shape[:2]

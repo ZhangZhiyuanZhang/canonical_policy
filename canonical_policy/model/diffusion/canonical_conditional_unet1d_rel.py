@@ -185,6 +185,7 @@ class CanonicalConditionalUnet1DRel(nn.Module):
         timestep: (B,) or int, diffusion step
         local_cond: (B,T,local_cond_dim)
         global_cond: (B,global_cond_dim)
+        est_quat: [BTo, 4] wijk
         output: (B,T,input_dim)
         """
         B, T = sample.shape[:2]
